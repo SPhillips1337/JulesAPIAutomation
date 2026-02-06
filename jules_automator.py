@@ -37,7 +37,18 @@ class JulesAutomator:
             "automationMode": "AUTO_CREATE_PR",
             "title": title
         }
+        print(f"Making POST request to {url}...")
         response = requests.post(url, headers=self.headers_jules, json=payload)
+        
+        if response.status_code != 200:
+            print(f"API Error: {response.status_code}")
+            print(f"Response Body: {response.text}")
+            if response.status_code == 404:
+                print("\n[TIP] 404 'Entity not found' usually means your repository is not connected to Jules.")
+                print("Visit https://jules.google.com to ensure the repo is tracked and open in your dashboard.")
+            elif response.status_code == 401:
+                 print("\n[TIP] 401 'Unauthenticated' means your API key is invalid or lacks permissions.")
+        
         response.raise_for_status()
         session_id = response.json().get("id")
         print(f"Created Jules session: {session_id}")
@@ -125,8 +136,42 @@ class JulesAutomator:
             time.sleep(5)
 
 if __name__ == "__main__":
-    # Example usage:
-    # config = Config(jules_api_key=..., ...)
-    # automator = JulesAutomator(config)
-    # automator.run_loop("...", "sources/github/...")
-    pass
+    from dotenv import load_dotenv
+    load_dotenv()
+
+    config = Config(
+        jules_api_key=os.getenv("JULES_API_KEY"),
+        github_token=os.getenv("GITHUB_TOKEN"),
+        ollama_url=os.getenv("OLLAMA_URL"),
+        ollama_model=os.getenv("OLLAMA_MODEL"),
+        repo_owner=os.getenv("REPO_OWNER"),
+        repo_name=os.getenv("REPO_NAME")
+    )
+
+    if not config.jules_api_key:
+        print("Error: JULES_API_KEY not found in .env")
+        exit(1)
+
+    work_order_path = "jules_work_order.txt"
+    if not os.path.exists(work_order_path):
+        print(f"Error: {work_order_path} not found")
+        exit(1)
+
+    with open(work_order_path, "r") as f:
+        prompt = f.read()
+
+    source_id = os.getenv("SOURCE_ID", f"sources/github/{config.repo_owner}/{config.repo_name}")
+    
+    automator = JulesAutomator(config)
+    print(f"Scheduling work order for {config.repo_name}...")
+    
+    try:
+        session_id = automator.create_session(
+            prompt=prompt,
+            source=source_id,
+            title="Songbird V2 Optimization"
+        )
+        print(f"Successfully scheduled! Session ID: {session_id}")
+        print("You can monitor the progress on the Jules dashboard or I can poll for completion.")
+    except Exception as e:
+        print(f"Failed to schedule session: {e}")

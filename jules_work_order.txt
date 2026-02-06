@@ -1,0 +1,22 @@
+### Jules Work Order: Songbird V2 Optimization & Local Storage
+
+**Objective**: Refine the Songbird V2 workflow for efficiency, quality, and complete local automation.
+
+**1. Code Efficiency & Logic Refinement**
+*   **LLM Optimization**: Refactor `LyricsAgent` to reduce redundant LLM calls. Combine research and drafting steps where logical to save tokens.
+*   **Robust Parsing**: Update `MusicAgent` to strictly parse the JSON-like output (Tags, BPM, Keyscale) using Python's `json` library, rather than passing raw LLM strings to the ComfyUI client.
+*   **Clean Constants**: Move hardcoded dictionaries (like artist styles) into a dedicated `config.py` if they exceed 5 items.
+
+**2. Music Quality & Duration**
+*   **Double Duration**: In `tools/comfy.py`, increase the default song duration from 120s to **240s** to prevent the "cut short" feeling.
+*   **Prompt Engineering**: 
+    *   Refine `MusicAgent` style prompts to generate more evocative tags for the ACE Step 1.5 model.
+    *   Refine `LyricsAgent` writer prompt to ensure ACE-compatible structure (e.g., clear `[Verse]`, `[Chorus]` markers) for better timing.
+
+**3. Local File Management**
+*   **Download Automation**: Update `SongbirdWorkflow` in `app.py` to poll the ComfyUI `/history` endpoint. 
+*   **LocalStorage**: Once the task is finished, download the generated `.mp3` from the ComfyUI server and save it into the local `output/` folder using the artist/song name.
+
+**Target Files**:
+- `agents/artist.py`, `agents/music.py`, `agents/lyrics.py`
+- `tools/comfy.py`, `app.py`
