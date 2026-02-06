@@ -25,7 +25,6 @@ Iterative development works best when specialized agents handle different parts 
 ### Technical Gotchas
 - **Shell Execution**: Amazon Q will flag `shell_exec` usage. When fixing, ensure you capture exit codes (e.g., `cmd 2>&1; echo $?`) and handle non-zero results.
 - **JSON Encoding**: Always JSON-escape prompts to avoid payload errors.
-- **404 Entity Not Found**: If the API returns a 404 during session creation, ensure the repository is explicitly opened/onboarded at [jules.google.com](https://jules.google.com). Public repositories still require an initial manual sync in the dashboard.
 
 ## Integration Targets
 - **Ollama (Qwen 2.5)**: Excellent for qualitative assessment of review comments.

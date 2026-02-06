@@ -15,3 +15,7 @@ htmlcov/
 
 # OS
 .DS_Store
+
+# Logs and Session Data
+*.log
+session_activities.json

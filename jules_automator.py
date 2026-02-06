@@ -1,7 +1,9 @@
 import os
 import json
 import time
+import argparse
 import requests
+from dotenv import load_dotenv
 from typing import Dict, List, Optional
 from dataclasses import dataclass
 
@@ -13,6 +15,7 @@ class Config:
     ollama_model: str
     repo_owner: str
     repo_name: str
+    source_id: str
 
 class JulesAutomator:
     JULES_BASE_URL = "https://jules.googleapis.com/v1alpha"
@@ -47,24 +50,40 @@ class JulesAutomator:
                 print("\n[TIP] 404 'Entity not found' usually means your repository is not connected to Jules.")
                 print("Visit https://jules.google.com to ensure the repo is tracked and open in your dashboard.")
             elif response.status_code == 401:
-                 print("\n[TIP] 401 'Unauthenticated' means your API key is invalid or lacks permissions.")
+                print("\n[TIP] 401 'Unauthenticated' means your API key is invalid or lacks permissions.")
         
         response.raise_for_status()
         session_id = response.json().get("id")
         print(f"Created Jules session: {session_id}")
         return session_id
 
-    def poll_session(self, session_id: str, interval: int = 60) -> Optional[Dict]:
+    def get_session(self, session_id: str) -> Dict:
         url = f"{self.JULES_BASE_URL}/sessions/{session_id}"
+        response = requests.get(url, headers=self.headers_jules)
+        response.raise_for_status()
+        return response.json()
+
+    def list_sessions(self, page_size: int = 10) -> List[Dict]:
+        url = f"{self.JULES_BASE_URL}/sessions"
+        params = {"pageSize": page_size}
+        response = requests.get(url, headers=self.headers_jules, params=params)
+        response.raise_for_status()
+        return response.json().get("sessions", [])
+
+    def poll_session(self, session_id: str, interval: int = 60) -> Optional[Dict]:
         while True:
-            response = requests.get(url, headers=self.headers_jules)
-            response.raise_for_status()
-            data = response.json()
+            data = self.get_session(session_id)
             # Check for completion: Look for PR output or terminal status
             if "outputs" in data and any("pullRequest" in o for o in data["outputs"]):
                 print(f"Session {session_id} completed with PR.")
                 return data
-            print(f"Session {session_id} still in progress... sleeping {interval}s")
+            
+            state = data.get("state", "UNKNOWN")
+            print(f"Session {session_id} status: {state}... sleeping {interval}s")
+            
+            if state in ["COMPLETED", "FAILED", "CANCELLED"]:
+                return data
+                
             time.sleep(interval)
 
     def send_message(self, session_id: str, prompt: str) -> Dict:
@@ -116,62 +135,56 @@ class JulesAutomator:
             session_id = self.create_session(current_prompt, source, current_branch)
             session_data = self.poll_session(session_id)
             
-            # Extract PR number from outputs (mock logic)
-            # pr_url = session_data['outputs'][0]['pullRequest']['url']
-            # pr_number = pr_url.split('/')[-1]
-            
-            # Dummy logic for PoC:
-            print("Session finished. Fetching reviews...")
-            # comments = self.fetch_pr_comments(pr_number)
-            # needs_fix = self.assess_with_ollama(comments)
-            
-            needs_fix = False # Placeholder
-            if not needs_fix:
-                print("No critical issues found. Task complete.")
-                break
-            
-            print("Issues detected. Refining prompt and restarting...")
-            # current_prompt = refine_prompt(current_prompt, comments)
-            # current_branch = head_branch_of_pr
-            time.sleep(5)
+            print("Session finished. Checkout PR for details.")
+            # placeholder for more advanced iteration logic
+            break
 
 if __name__ == "__main__":
-    from dotenv import load_dotenv
     load_dotenv()
+    
+    parser = argparse.ArgumentParser(description="Jules Automator CLI")
+    parser.add_argument("--prompt", help="Initial prompt or path to a prompt file")
+    parser.add_argument("--session_id", help="Session ID for status/message operations")
+    parser.add_argument("--title", default="Automated Task", help="Title for the new session")
+    parser.add_argument("--mode", choices=["create", "message", "loop", "status", "list", "activities"], default="loop", help="Operation mode")
+    
+    args = parser.parse_args()
 
     config = Config(
-        jules_api_key=os.getenv("JULES_API_KEY"),
-        github_token=os.getenv("GITHUB_TOKEN"),
-        ollama_url=os.getenv("OLLAMA_URL"),
-        ollama_model=os.getenv("OLLAMA_MODEL"),
-        repo_owner=os.getenv("REPO_OWNER"),
-        repo_name=os.getenv("REPO_NAME")
+        jules_api_key=os.getenv("JULES_API_KEY", ""),
+        github_token=os.getenv("GITHUB_TOKEN", ""),
+        ollama_url=os.getenv("OLLAMA_URL", "http://localhost:11434"),
+        ollama_model=os.getenv("OLLAMA_MODEL", "qwen2.5:14b"),
+        repo_owner=os.getenv("REPO_OWNER", "SPhillips1337"),
+        repo_name=os.getenv("REPO_NAME", "LinkenIn-Poster"),
+        source_id=os.getenv("SOURCE_ID", "sources/github/SPhillips1337/LinkenIn-Poster")
     )
-
-    if not config.jules_api_key:
-        print("Error: JULES_API_KEY not found in .env")
-        exit(1)
-
-    work_order_path = "jules_work_order.txt"
-    if not os.path.exists(work_order_path):
-        print(f"Error: {work_order_path} not found")
-        exit(1)
-
-    with open(work_order_path, "r") as f:
-        prompt = f.read()
-
-    source_id = os.getenv("SOURCE_ID", f"sources/github/{config.repo_owner}/{config.repo_name}")
     
     automator = JulesAutomator(config)
-    print(f"Scheduling work order for {config.repo_name}...")
-    
-    try:
-        session_id = automator.create_session(
-            prompt=prompt,
-            source=source_id,
-            title="Songbird V2 Optimization"
-        )
-        print(f"Successfully scheduled! Session ID: {session_id}")
-        print("You can monitor the progress on the Jules dashboard or I can poll for completion.")
-    except Exception as e:
-        print(f"Failed to schedule session: {e}")
+
+    prompt_content = None
+    if args.prompt:
+        if os.path.exists(args.prompt):
+            with open(args.prompt, 'r') as f:
+                prompt_content = f.read()
+        else:
+            prompt_content = args.prompt
+
+    if args.mode == "create" and prompt_content:
+        automator.create_session(prompt_content, config.source_id, title=args.title)
+    elif args.mode == "message" and args.session_id and prompt_content:
+        automator.send_message(args.session_id, prompt_content)
+    elif args.mode == "loop" and prompt_content:
+        automator.run_loop(prompt_content, config.source_id)
+    elif args.mode == "status" and args.session_id:
+        status = automator.get_session(args.session_id)
+        print(json.dumps(status, indent=2))
+    elif args.mode == "list":
+        sessions = automator.list_sessions()
+        for s in sessions:
+            print(f"ID: {s.get('id')} | Title: {s.get('title')} | State: {s.get('state')}")
+    elif args.mode == "activities" and args.session_id:
+        activities = automator.list_activities(args.session_id)
+        print(json.dumps(activities, indent=2))
+    else:
+        print("Invalid arguments. Use --help for usage.")
