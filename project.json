@@ -1,0 +1,34 @@
+{
+  "$schema": "https://raw.githubusercontent.com/SPhillips1337/Project-JSON-Schema/main/schema/project.schema.json",
+  "project_name": "JulesAPI Automation",
+  "version": "1.0.0",
+  "concept": "An automated iterative development loop that integrates Google Jules for implementation, Amazon Q for review, and local LLMs for decision making.",
+  "status": "In Development",
+  "current_goals": [
+    "Automate Jules session creation and monitoring",
+    "Fetch and analyze GitHub PR reviews from Amazon Q",
+    "Integrate local Ollama instance for iterative decision logic"
+  ],
+  "key_files": {
+    "automator": "jules_automator.py",
+    "agent_guide": "AGENTS.md",
+    "jules_notes": "JULES.md",
+    "config": ".env"
+  },
+  "features": {
+    "completed": [],
+    "demo_ready": [],
+    "future_enhancements": [
+      "Support for multiple reviewer bots",
+      "Web-based dashboard for iteration history",
+      "Automated branch cleanup"
+    ]
+  },
+  "generation_modes": {
+    "jules": {
+      "command": "python3 jules_automator.py",
+      "description": "Standard iterative loop with Jules and Amazon Q",
+      "features": ["PR Monitoring", "Ollama Assessment", "Auto-Reschedule"]
+    }
+  }
+}

@@ -1,0 +1,15 @@
+Amazon Q Developer identified one final logic error in PR #1. Your current check for `$output === null` in `app.php` only catches configuration errors, not script crashes. 
+
+Please update the logic to capture the exit code by appending `; echo $?` to the command and parsing the result. 
+
+Example fix for `app.php`:
+```php
+$output = shell_exec($cmd . ' 2>&1; echo $?');
+$lines = explode("\n", trim($output));
+$exit_code = array_pop($lines);
+if ($exit_code !== '0') {
+    throw new Exception('Failed to execute  script');
+}
+```
+
+This ensures we don't proceed with missing or corrupt data if the Python script fails.
