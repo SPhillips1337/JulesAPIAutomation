@@ -1,5 +1,4 @@
 import os
-import sys
 import io
 from contextlib import redirect_stdout
 from typing import Optional, List, Dict
@@ -15,8 +14,8 @@ mcp = FastMCP("Jules MCP Server")
 
 def get_config() -> Config:
     return Config(
-        jules_api_key=os.getenv("JULES_API_KEY", ""),
-        github_token=os.getenv("GITHUB_TOKEN", ""),
+        jules_api_key=os.environ["JULES_API_KEY"],
+        github_token=os.environ["GITHUB_TOKEN"],
         ollama_url=os.getenv("OLLAMA_URL", "http://localhost:11434"),
         ollama_model=os.getenv("OLLAMA_MODEL", "qwen2.5:14b"),
         repo_owner=os.getenv("REPO_OWNER", "SPhillips1337"),
@@ -87,9 +86,12 @@ def jules_process_reviews(pr_number: int, session_id: str) -> str:
         session_id: The ID of the session.
     """
     f = io.StringIO()
-    with redirect_stdout(f):
-        automator.handle_amazon_q_reviews(pr_number, session_id)
-    return f.getvalue()
+    try:
+        with redirect_stdout(f):
+            automator.handle_amazon_q_reviews(pr_number, session_id)
+        return f.getvalue()
+    except Exception as e:
+        return f"Error processing reviews: {str(e)}\n{f.getvalue()}"
 
 if __name__ == "__main__":
     mcp.run()

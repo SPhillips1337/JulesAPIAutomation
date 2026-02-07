@@ -38,7 +38,10 @@ python jules_mcp_server.py
 
 ## Integrating with Claude Desktop
 
-Add the following configuration to your `claude_desktop_config.json`:
+Add the following configuration to your `claude_desktop_config.json`. 
+
+> [!IMPORTANT]
+> For security, it is highly recommended to use environment variables for your sensitive tokens rather than hardcoding them in the configuration file if your environment supports it.
 
 ```json
 {
@@ -47,8 +50,8 @@ Add the following configuration to your `claude_desktop_config.json`:
       "command": "python",
       "args": ["/path/to/jules_mcp_server.py"],
       "env": {
-        "JULES_API_KEY": "your_jules_api_key",
-        "GITHUB_TOKEN": "your_github_token"
+        "JULES_API_KEY": "YOUR_JULES_API_KEY",
+        "GITHUB_TOKEN": "YOUR_GITHUB_TOKEN"
       }
     }
   }
