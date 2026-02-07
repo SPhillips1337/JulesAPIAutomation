@@ -3,6 +3,7 @@ import json
 import time
 import argparse
 import requests
+import sys
 from dotenv import load_dotenv
 from typing import Dict, List, Optional
 from dataclasses import dataclass
@@ -28,6 +29,21 @@ class JulesAutomator:
             "Authorization": f"token {config.github_token}",
             "Accept": "application/vnd.github.v3+json"
         }
+        self.state_file = os.path.join(os.path.dirname(__file__), ".jules_state.json")
+        self.state = self._load_state()
+
+    def _load_state(self) -> Dict:
+        if os.path.exists(self.state_file):
+            try:
+                with open(self.state_file, "r") as f:
+                    return json.load(f)
+            except json.JSONDecodeError:
+                pass
+        return {"processed_comments": [], "processed_sessions": [], "active_sessions": {}}
+
+    def _save_state(self):
+        with open(self.state_file, "w") as f:
+            json.dump(self.state, f, indent=4)
 
     def create_session(self, prompt: str, source: str, branch: str = "main", title: str = "Automated Task") -> str:
         url = f"{self.JULES_BASE_URL}/sessions"
@@ -103,9 +119,24 @@ class JulesAutomator:
 
     def fetch_pr_comments(self, pr_number: int) -> List[Dict]:
         url = f"{self.GITHUB_API_URL}/repos/{self.config.repo_owner}/{self.config.repo_name}/pulls/{pr_number}/comments"
+        print(f"Fetching review comments from: {url}")
         response = requests.get(url, headers=self.headers_github)
         response.raise_for_status()
-        return response.json()
+        comments = response.json()
+        print(f"Total review comments found: {len(comments)}")
+        
+        # Filter for Amazon Q and unprocessed comments
+        new_comments = []
+        for c in comments:
+            author = c['user']['login']
+            if 'amazon-q-developer' in author and c['id'] not in self.state["processed_comments"]:
+                new_comments.append(c)
+        return new_comments
+
+    def mark_comment_processed(self, comment_id: int):
+        if comment_id not in self.state["processed_comments"]:
+            self.state["processed_comments"].append(comment_id)
+            self._save_state()
 
     def assess_with_ollama(self, comments: List[Dict]) -> bool:
         prompt = f"Assess the following code review comments for security vulnerabilities or critical logic errors:\n\n"
@@ -119,24 +150,54 @@ class JulesAutomator:
             "stream": False
         }
         try:
-            response = requests.post(f"{self.config.ollama_url}/api/generate", json=payload)
+            url = f"{self.config.ollama_url.rstrip('/')}/api/generate"
+            response = requests.post(url, json=payload, timeout=30)
             response.raise_for_status()
             assessment = response.json().get("response", "").strip().upper()
             return "YES" in assessment
         except Exception as e:
             print(f"Ollama assessment failed: {e}")
-            return False
+            return None
 
-    def run_loop(self, initial_prompt: str, source: str):
+    def handle_amazon_q_reviews(self, pr_number: int, session_id: str):
+        """Fetches reviews, assesses them, and sends a single batch message to Jules."""
+        comments = self.fetch_pr_comments(pr_number)
+        if not comments:
+            print(f"No new Amazon Q comments for PR #{pr_number}.")
+            return
+
+        print(f"Found {len(comments)} new comments. Assessing with Ollama...")
+        assessment = self.assess_with_ollama(comments)
+        
+        if assessment is True:
+            message = "The following logic and security issues were identified in the PR review. Please fix them:\n\n"
+            for c in comments:
+                message += f"File: {c['path']} (Line {c.get('line', 'N/A')}):\n{c['body']}\n\n"
+            
+            print(f"Sending batch fix request to session {session_id}...")
+            self.send_message(session_id, message)
+            
+            for c in comments:
+                self.mark_comment_processed(c['id'])
+            print("Successfully communicated fixes to Jules.")
+        elif assessment is False:
+            print("Ollama determined no critical fixes are required.")
+            for c in comments:
+                self.mark_comment_processed(c['id'])
+        else:
+            print("Skipping processing due to Ollama failure (Connection issues?).")
+
+    def run_loop(self, initial_prompt: str, source: str, branch: str = "main"):
         current_prompt = initial_prompt
-        current_branch = "main"
+        current_branch = branch
 
         while True:
             session_id = self.create_session(current_prompt, source, current_branch)
             session_data = self.poll_session(session_id)
             
-            print("Session finished. Checkout PR for details.")
-            # placeholder for more advanced iteration logic
+            if "outputs" in session_data:
+                # Potential for automated iteration based on PR comments here
+                print("Session completed. Check the generated PR for details.")
             break
 
 if __name__ == "__main__":
@@ -144,9 +205,11 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description="Jules Automator CLI")
     parser.add_argument("--prompt", help="Initial prompt or path to a prompt file")
-    parser.add_argument("--session_id", help="Session ID for status/message operations")
+    parser.add_argument("--session_id", help="Session ID for status/message/review operations")
+    parser.add_argument("--pr", type=int, help="Pull Request number (used in 'review' mode)")
     parser.add_argument("--title", default="Automated Task", help="Title for the new session")
-    parser.add_argument("--mode", choices=["create", "message", "loop", "status", "list", "activities"], default="loop", help="Operation mode")
+    parser.add_argument("--branch", default="main", help="Starting branch for new sessions")
+    parser.add_argument("--mode", choices=["create", "message", "loop", "status", "list", "activities", "review"], default="loop", help="Operation mode")
     
     args = parser.parse_args()
 
@@ -160,6 +223,10 @@ if __name__ == "__main__":
         source_id=os.getenv("SOURCE_ID", "sources/github/SPhillips1337/LinkenIn-Poster")
     )
     
+    if not config.jules_api_key or not config.github_token:
+        print("Error: JULES_API_KEY and GITHUB_TOKEN must be set in environment.")
+        sys.exit(1)
+
     automator = JulesAutomator(config)
 
     prompt_content = None
@@ -171,11 +238,11 @@ if __name__ == "__main__":
             prompt_content = args.prompt
 
     if args.mode == "create" and prompt_content:
-        automator.create_session(prompt_content, config.source_id, title=args.title)
+        automator.create_session(prompt_content, config.source_id, branch=args.branch, title=args.title)
     elif args.mode == "message" and args.session_id and prompt_content:
         automator.send_message(args.session_id, prompt_content)
     elif args.mode == "loop" and prompt_content:
-        automator.run_loop(prompt_content, config.source_id)
+        automator.run_loop(prompt_content, config.source_id, branch=args.branch)
     elif args.mode == "status" and args.session_id:
         status = automator.get_session(args.session_id)
         print(json.dumps(status, indent=2))
@@ -186,5 +253,10 @@ if __name__ == "__main__":
     elif args.mode == "activities" and args.session_id:
         activities = automator.list_activities(args.session_id)
         print(json.dumps(activities, indent=2))
+    elif args.mode == "review" and args.pr and args.session_id:
+        automator.handle_amazon_q_reviews(args.pr, args.session_id)
     else:
-        print("Invalid arguments. Use --help for usage.")
+        if args.mode == "review" and (not args.pr or not args.session_id):
+            print("Error: 'review' mode requires both --pr and --session_id.")
+        else:
+            print("Invalid arguments or missing prompt/ID. Use --help for usage.")

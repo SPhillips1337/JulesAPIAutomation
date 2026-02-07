@@ -29,31 +29,39 @@ This guide explains how to set up and run the JulesAPI iteration loop.
    pip install requests
    ```
 
-## 🏃 Running the Loop
+## 🏃 Running the Automator
 
-The main entry point is `jules_automator.py`. You can run a task by providing a prompt and a source context, and the script will handle the rest. It is designed to be run in a loop, with the script handling the iteration and decision-making can easily be operated by AI tooling such as Gemini 3 Flash in Google Antigravity IDE by asking it to use the JulesAPI scripts provided.
+The `jules_automator.py` script provides a CLI for managing Jules sessions and automating code reviews.
 
-```python
-from jules_automator import JulesAutomator, Config
+### CLI Modes
 
-config = Config(
-    jules_api_key="...",
-    github_token="...",
-    ollama_url="http://localhost:11434",
-    ollama_model="qwen2.5:14b",
-    repo_owner="JoeBloggs",
-    repo_name="GitProject"
-)
+- **loop** (Default): Creates a new session and polls for completion.
+  ```bash
+  python3 jules_automator.py --prompt "Refactor codebase" --branch main
+  ```
+- **create**: Creates a session and exits.
+  ```bash
+  python3 jules_automator.py --mode create --prompt "prompt.txt" --title "My Task"
+  ```
+- **message**: Sends a message to an existing session.
+  ```bash
+  python3 jules_automator.py --mode message --session_id <ID> --prompt "Check for bugs"
+  ```
+- **status**: Gets current session status (JSON).
+  ```bash
+  python3 jules_automator.py --mode status --session_id <ID>
+  ```
+- **list**: Lists recent sessions.
+  ```bash
+  python3 jules_automator.py --mode list
+  ```
+- **review**: Processes Amazon Q reviews for a PR and sends fixes to Jules.
+  ```bash
+  python3 jules_automator.py --mode review --pr <PR_NUM> --session_id <ID>
+  ```
 
-automator = JulesAutomator(config)
-automator.run_loop(
-    initial_prompt="Add performance analytics to the user dashboard",
-    source="sources/github/JoeBloggs/GitProject"
-)
-```
+## 🔍 Monitoring & State
 
-## 🔍 Monitoring
-
-- **Terminal Output**: The script logs session creation, PR URLs, and Ollama assessments.
-- **Jules Logs**: Use `list_activities(session_id)` to see the internal agent logs.
-- **GitHub**: Check the generated Pull Request for comments from `amazon-q-developer`.
+- **State Management**: The script tracks processed PR comments in `.jules_state.json` to avoid duplicate processing.
+- **Ollama Integration**: Uses a local Ollama instance to assess if PR reviews require code changes before prompting Jules.
+- **Activities**: View internal agent logs with `python3 jules_automator.py --mode activities --session_id <ID>`.
