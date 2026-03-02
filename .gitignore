@@ -19,3 +19,4 @@ htmlcov/
 # Logs and Session Data
 *.log
 session_activities.json
+venv/*

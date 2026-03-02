@@ -26,18 +26,15 @@ def get_config() -> Config:
 automator = JulesAutomator(get_config())
 
 @mcp.tool()
-def jules_create_session(prompt: str, source_id: Optional[str] = None, branch: str = "main", title: str = "Automated Task") -> str:
+def jules_create_session(prompt: str, source_id: str, branch: str = "main", title: str = "Automated Task") -> str:
     """Creates a new Jules session.
 
     Args:
         prompt: The prompt for the session.
-        source_id: The source ID (defaults to environment variable).
+        source_id: The source ID formatted as 'sources/github/owner/repo'.
         branch: The starting branch (defaults to "main").
         title: The title of the session.
     """
-    if not source_id:
-        source_id = automator.config.source_id
-
     return automator.create_session(prompt, source_id, branch, title)
 
 @mcp.tool()
@@ -78,17 +75,19 @@ def jules_get_activities(session_id: str) -> List[Dict]:
     return automator.list_activities(session_id)
 
 @mcp.tool()
-def jules_process_reviews(pr_number: int, session_id: str) -> str:
+def jules_process_reviews(repo_owner: str, repo_name: str, pr_number: int, session_id: str) -> str:
     """Fetches PR reviews, assesses them via Ollama, and sends fix requests to Jules.
 
     Args:
+        repo_owner: The GitHub repository owner.
+        repo_name: The GitHub repository name.
         pr_number: The Pull Request number.
         session_id: The ID of the session.
     """
     f = io.StringIO()
     try:
         with redirect_stdout(f):
-            automator.handle_amazon_q_reviews(pr_number, session_id)
+            automator.handle_amazon_q_reviews(repo_owner, repo_name, pr_number, session_id)
         return f.getvalue()
     except Exception as e:
         return f"Error processing reviews: {str(e)}\n{f.getvalue()}"
