@@ -117,8 +117,8 @@ class JulesAutomator:
         response.raise_for_status()
         return response.json().get("activities", [])
 
-    def fetch_pr_comments(self, pr_number: int) -> List[Dict]:
-        url = f"{self.GITHUB_API_URL}/repos/{self.config.repo_owner}/{self.config.repo_name}/pulls/{pr_number}/comments"
+    def fetch_pr_comments(self, repo_owner: str, repo_name: str, pr_number: int) -> List[Dict]:
+        url = f"{self.GITHUB_API_URL}/repos/{repo_owner}/{repo_name}/pulls/{pr_number}/comments"
         print(f"Fetching review comments from: {url}")
         response = requests.get(url, headers=self.headers_github)
         response.raise_for_status()
@@ -159,9 +159,9 @@ class JulesAutomator:
             print(f"Ollama assessment failed: {e}")
             return None
 
-    def handle_amazon_q_reviews(self, pr_number: int, session_id: str):
+    def handle_amazon_q_reviews(self, repo_owner: str, repo_name: str, pr_number: int, session_id: str):
         """Fetches reviews, assesses them, and sends a single batch message to Jules."""
-        comments = self.fetch_pr_comments(pr_number)
+        comments = self.fetch_pr_comments(repo_owner, repo_name, pr_number)
         if not comments:
             print(f"No new Amazon Q comments for PR #{pr_number}.")
             return
@@ -254,7 +254,7 @@ if __name__ == "__main__":
         activities = automator.list_activities(args.session_id)
         print(json.dumps(activities, indent=2))
     elif args.mode == "review" and args.pr and args.session_id:
-        automator.handle_amazon_q_reviews(args.pr, args.session_id)
+        automator.handle_amazon_q_reviews(config.repo_owner, config.repo_name, args.pr, args.session_id)
     else:
         if args.mode == "review" and (not args.pr or not args.session_id):
             print("Error: 'review' mode requires both --pr and --session_id.")

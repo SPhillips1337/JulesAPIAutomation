@@ -6,6 +6,7 @@
 
 This project implements an automated development loop by integrating:
 - **[Google Jules](https://jules.googleapis.com)**: For code implementation and Pull Request creation.
+- **Jules MCP Server**: Standardized Model Context Protocol interface for AI agents.
 - **Amazon Q Developer**: For rigorous code review and security auditing.
 - **Local LLMs (via Ollama)**: For qualitative assessment of review feedback and iteration decision-making.
 
@@ -19,9 +20,12 @@ This project implements an automated development loop by integrating:
 ## 📂 Project Structure
 
 - `jules_automator.py`: The core orchestration script.
+- `jules_mcp_server.py`: MCP server implementation for agent-to-agent communication.
+- `.jules_state.json`: State file for tracking processed comments and sessions.
 - `AGENTS.md`: Technical guide for AI agents participating in the loop.
 - `JULES.md`: Reference for iterative development patterns and best practices.
-- `USAGE.md`: Detailed setup and execution instructions.
+- `USAGE.md` / `USAGE_MCP.md`: Setup and execution instructions.
+- `PLAN.md`: Strategic roadmap for future developments.
 
 ## 📜 License
 

@@ -27,5 +27,6 @@ Iterative development works best when specialized agents handle different parts 
 - **JSON Encoding**: Always JSON-escape prompts to avoid payload errors.
 
 ## Integration Targets
+- **Jules MCP Server**: The standardized interface for exposing these development patterns to other AI agents.
 - **Ollama (Qwen 2.5)**: Excellent for qualitative assessment of review comments.
 - **GitHub API**: Essential for fetching `reviewThreads` and `comments`.
