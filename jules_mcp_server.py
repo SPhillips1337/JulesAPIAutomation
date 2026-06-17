@@ -13,14 +13,16 @@ load_dotenv()
 mcp = FastMCP("Jules MCP Server")
 
 def get_config() -> Config:
+    repo_owner = os.getenv("REPO_OWNER") or "SPhillips1337"
+    repo_name = os.getenv("REPO_NAME") or "LinkenIn-Poster"
     return Config(
-        jules_api_key=os.environ["JULES_API_KEY"],
-        github_token=os.environ["GITHUB_TOKEN"],
-        ollama_url=os.getenv("OLLAMA_URL", "http://localhost:11434"),
-        ollama_model=os.getenv("OLLAMA_MODEL", "qwen2.5:14b"),
-        repo_owner=os.getenv("REPO_OWNER", "SPhillips1337"),
-        repo_name=os.getenv("REPO_NAME", "LinkenIn-Poster"),
-        source_id=os.getenv("SOURCE_ID", "sources/github/SPhillips1337/LinkenIn-Poster")
+        jules_api_key=os.getenv("JULES_API_KEY") or "",
+        github_token=os.getenv("GITHUB_TOKEN") or "",
+        ollama_url=os.getenv("OLLAMA_URL") or "http://localhost:11434",
+        ollama_model=os.getenv("OLLAMA_MODEL") or "qwen2.5:14b",
+        repo_owner=repo_owner,
+        repo_name=repo_name,
+        source_id=os.getenv("SOURCE_ID") or f"sources/github/{repo_owner}/{repo_name}"
     )
 
 automator = JulesAutomator(get_config())
@@ -75,19 +77,21 @@ def jules_get_activities(session_id: str) -> List[Dict]:
     return automator.list_activities(session_id)
 
 @mcp.tool()
-def jules_process_reviews(repo_owner: str, repo_name: str, pr_number: int, session_id: str) -> str:
-    """Fetches PR reviews, assesses them via Ollama, and sends fix requests to Jules.
+def jules_process_reviews(pr_number: int, session_id: str, repo_owner: Optional[str] = None, repo_name: Optional[str] = None) -> str:
+    """Fetches PR reviews, performs Agent-to-Agent check, decides via Ollama, and executes fixes.
 
     Args:
-        repo_owner: The GitHub repository owner.
-        repo_name: The GitHub repository name.
         pr_number: The Pull Request number.
         session_id: The ID of the session.
+        repo_owner: Optional GitHub repository owner (defaults to config).
+        repo_name: Optional GitHub repository name (defaults to config).
     """
+    owner = repo_owner or automator.config.repo_owner
+    name = repo_name or automator.config.repo_name
     f = io.StringIO()
     try:
         with redirect_stdout(f):
-            automator.handle_amazon_q_reviews(repo_owner, repo_name, pr_number, session_id)
+            automator.handle_amazon_q_reviews(owner, name, pr_number, session_id)
         return f.getvalue()
     except Exception as e:
         return f"Error processing reviews: {str(e)}\n{f.getvalue()}"
